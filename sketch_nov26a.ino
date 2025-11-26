@@ -37,6 +37,8 @@ constexpr float RS = 0.05;
 
 #define LINEAR_STEP_TIME 100
 #define ROTATE_STEP_CW (MICROSTEP_FACTOR)
+#define MIN_LINEAR_DELTA 1
+#define DELAY_DELTA_FACTOR 0.1f
 
 TMC5160Stepper stepperDriver(pin_chipSelA, RS);
 
@@ -124,7 +126,6 @@ void linearRetract(uint16_t speed = 4095)
 
 void linearExtend(uint16_t speed = 4095)
 {
-
   linearDriver.setPin(in1Pin, 0);
   linearDriver.setPin(in2Pin, speed);
 }
@@ -194,25 +195,25 @@ void linearRetractStep(int delayTime) {
   linearStop();
 }
 
-void processCommand(char cmd) {
-  switch (cmd) {
-    case '\0':
-      Serial.println("waiting for command");
-      delay(1000);
-      break;
-    case 'r':
-      rotate(ROTATE_STEP_CW);
-      break;
-    case 'R':
-      rotate(- ROTATE_STEP_CW);
-      break;
-    case 'l':
-      linearExtendStep();
-      break;
-    case 'L':
-      linearRetractStep();
-      break;
-  }
+void linearMoveTo(int where) {
+    int currentPosition = readPosition();
+    int delta = currentPosition - where;
+    while (abs(delta) > MIN_LINEAR_DELTA) {
+        Serial.print("Delta is ");
+        Serial.print(delta);
+
+        if (delta > 0) {
+            linearRetract();
+            Serial.println(", retracting");
+        } else {
+            linearExtend();
+            Serial.println(", extending");
+        }
+
+        delay((int)(DELAY_DELTA_FACTOR * (float) abs(delta)));
+        linearStop();
+        delta = readPosition() - where;
+    }
 }
 
 void processCommand(String cmd) {
@@ -223,25 +224,22 @@ void processCommand(String cmd) {
   }
 
   char action = cmd.charAt(0);
-  int howMuch = cmd.substring(1, cmd.length()).toInt();
+  int amount = cmd.substring(1, cmd.length()).toInt();
 
   switch (action) {
     case 'r':
     case 'R':
-      rotate(howMuch * ROTATE_STEP_CW);
+      rotate(amount * ROTATE_STEP_CW);
       break;
     case 'l':
     case 'L':
-      if (howMuch >= 0) {
-        linearExtendStep(howMuch * LINEAR_STEP_TIME);
-      } else {
-        linearRetractStep(- howMuch * LINEAR_STEP_TIME);
-      }
+      linearMoveTo(amount);
       break;
   }
 }
 
 void loop() {
+  Serial.println(readPosition());
   String cmd = readLine();
   if (cmd.length() <= 1) {
     delay(500);

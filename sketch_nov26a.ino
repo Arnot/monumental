@@ -37,7 +37,8 @@ constexpr float RS = 0.05;
 
 #define LINEAR_STEP_TIME 100
 #define ROTATE_STEP_CW (MICROSTEP_FACTOR)
-#define MIN_LINEAR_DELTA 1
+#define MIN_LINEAR_DELTA 2
+#define MIN_LINEAR_DELAY 30
 #define DELAY_DELTA_FACTOR 0.1f
 
 TMC5160Stepper stepperDriver(pin_chipSelA, RS);
@@ -144,7 +145,7 @@ char readChar() {
 }
 
 String readLine() {
-  String result;
+  String result = String("");
   while (Serial.available() > 0) {
     delay(3); // delay to allow buffer to fill
 
@@ -158,20 +159,24 @@ String readLine() {
     }
   }
 
-  if (result.length() > 0) {
-    Serial.print("Received "); Serial.println(result);
-  }
+  /* if (result.length() > 0) { */
+  /*   Serial.print("Received "); Serial.println(result); */
+  /* } */
 
   return result;
 }
 
 void rotate(int steps) {
   stepperDriver.XTARGET(stepperDriver.XACTUAL() + steps); // This is in Microsteps
-  Serial.print("Rotating ");
-  Serial.print(steps);
-  Serial.println(" steps");
+
+  const unsigned long start = millis();
+  const unsigned long timeout_ms = 3000; // 3 seconds, tweak as needed
+
   while (!stepperDriver.position_reached()) {
-    delay(100);
+    if (millis() - start > timeout_ms) {
+      break;
+    }
+    delay(50);
   }
 }
 
@@ -198,28 +203,38 @@ void linearRetractStep(int delayTime) {
 void linearMoveTo(int where) {
     int currentPosition = readPosition();
     int delta = currentPosition - where;
+    /* int lastDelta = 0; */
+
+    int iterations = 0;
+    int maxIterations = 200;
     while (abs(delta) > MIN_LINEAR_DELTA) {
-        Serial.print("Delta is ");
-        Serial.print(delta);
+        if (iterations++ > maxIterations) {
+            break;
+        }
 
         if (delta > 0) {
             linearRetract();
-            Serial.println(", retracting");
         } else {
             linearExtend();
-            Serial.println(", extending");
         }
 
-        delay((int)(DELAY_DELTA_FACTOR * (float) abs(delta)));
+        delay(max(MIN_LINEAR_DELAY, (int)(DELAY_DELTA_FACTOR * (float) abs(delta))));
         linearStop();
         delta = readPosition() - where;
+
+        /* if (abs(delta - lastDelta) < 1) { // basically not changing */
+        /*     break; */
+        /* } */
+        /* lastDelta = delta; */
     }
+
+    linearStop();
 }
 
 void processCommand(String cmd) {
   if (cmd.length() <= 1) {
-    Serial.print(cmd);
-    Serial.println(" - Missing argument");
+    /* Serial.print(cmd); */
+    /* Serial.println(" - Missing argument"); */
     return;
   }
 
@@ -235,13 +250,18 @@ void processCommand(String cmd) {
     case 'L':
       linearMoveTo(amount);
       break;
+    case 'p':
+    case 'P':
+      Serial.println(readPosition());
+      break;
   }
 }
 
 void loop() {
-  Serial.println(readPosition());
+  /* Serial.println(readPosition()); */
   String cmd = readLine();
   if (cmd.length() <= 1) {
+    Serial.println("no cmd");
     delay(500);
   } else {
     processCommand(cmd);

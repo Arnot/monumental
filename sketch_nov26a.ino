@@ -35,6 +35,9 @@ constexpr float DEFAULT_DECEL = (FULL_STEPS_PER_REV * MICROSTEP_FACTOR / RAIIO_D
 
 constexpr float RS = 0.05;
 
+#define LINEAR_STEP_TIME 200
+#define ROTATE_STEP_CW (MICROSTEP_FACTOR * 10)
+
 TMC5160Stepper stepperDriver(pin_chipSelA, RS);
 
 Adafruit_PWMServoDriver linearDriver(PCA9685_I2C_ADDRESS, Wire1);
@@ -131,22 +134,58 @@ void linearStop() {
   linearDriver.setPin(in2Pin, 0);
 }
 
-
-// Example of using the functions to control things
-void loop() {
-  Serial.println(readPosition()); // Read "FL" Port
-  linearRetract();
-  delay(1000);
-  linearExtend();
-  delay(1000);
-  linearStop();
-  delay(1000);
-
-  // Move 10 full steps from current position
-  stepperDriver.XTARGET(stepperDriver.XACTUAL() + (MICROSTEP_FACTOR * 10) ); // This is in Microsteps
-  // Wait until done
-  while (!stepperDriver.position_reached()) {
-    Serial.println("Moving");
-    delay(1000);
+char readChar() {
+  if (Serial.available() <= 0) {
+    return '\0';
   }
+
+  return Serial.read();
+}
+
+void rotate(int steps) {
+  stepperDriver.XTARGET(stepperDriver.XACTUAL() + steps); // This is in Microsteps
+  Serial.print("Rotating ");
+  Serial.print(steps);
+  Serial.println(" steps");
+  while (!stepperDriver.position_reached()) {
+    delay(100);
+  }
+}
+
+void linearExtendStep() {
+  linearExtend();
+  delay(LINEAR_STEP_TIME);
+  linearStop();
+}
+
+void linearRetractStep() {
+  linearRetract();
+  delay(LINEAR_STEP_TIME);
+  linearStop();
+}
+
+void processCommand(char cmd) {
+  switch (cmd) {
+    case '\0':
+      Serial.println("waiting for command");
+      delay(1000);
+      break;
+    case 'r':
+      rotate(ROTATE_STEP_CW);
+      break;
+    case 'R':
+      rotate(- ROATE_STEP_CW);
+      break;
+    case 'l':
+      linearExtendStep();
+      break;
+    case 'L':
+      linearRetractStep();
+      break;
+  }
+}
+
+void loop() {
+  char cmd = readChar();
+  processCommand(cmd);
 }

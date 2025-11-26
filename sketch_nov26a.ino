@@ -221,11 +221,6 @@ void linearMoveTo(int where) {
         delay(max(MIN_LINEAR_DELAY, (int)(DELAY_DELTA_FACTOR * (float) abs(delta))));
         linearStop();
         delta = readPosition() - where;
-
-        /* if (abs(delta - lastDelta) < 1) { // basically not changing */
-        /*     break; */
-        /* } */
-        /* lastDelta = delta; */
     }
 
     linearStop();

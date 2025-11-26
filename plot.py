@@ -244,7 +244,7 @@ class Plotter:
             input(f"Pen moved to {x_mm}, {y_mm}. Press Enter to continue...")
         else:
             # give the plotter some time to draw without spamming it
-            sleep(4)
+            sleep(6)
 
     def draw_line(
         self,
@@ -254,10 +254,6 @@ class Plotter:
         y1_mm: float,
         segments: int = DEFAULT_SEGMENTS,
     ):
-        """
-        Convenience method: jump (logically) to (x0, y0) and then draw to (x1, y1).
-        If you know you're already at (x0, y0), you can just call goto_xy(x1, y1).
-        """
         # Move (in small steps) from current to start of line
         self.goto_xy(x0_mm, y0_mm, segments=segments)
         # Draw the line
@@ -404,15 +400,15 @@ def main():
 
             m = INT_RE.match(cmd)
             if m:
-                # Square
+                # Centered square
                 side = int(m.group(0))
                 padding_x = (WIDTH_MM - side) / 2
                 padding_y = (HEIGHT_MM - side) / 2
                 plotter.goto_xy(padding_x, padding_y)
-                plotter.goto_xy(w - padding_x, padding_y, false)
-                plotter.goto_xy(w - padding_x, h + padding_y, false)
-                plotter.goto_xy(padding_x, h - padding_y, false)
-                plotter.goto_xy(padding_x, padding_y, false)
+                plotter.goto_xy(w - padding_x, padding_y, wait = False)
+                plotter.goto_xy(w - padding_x, h + padding_y, wait = False)
+                plotter.goto_xy(padding_x, h - padding_y, wait = False)
+                plotter.goto_xy(padding_x, padding_y, wait = False)
                 continue
 
             m = POLY_RE.match(cmd)

@@ -35,8 +35,8 @@ constexpr float DEFAULT_DECEL = (FULL_STEPS_PER_REV * MICROSTEP_FACTOR / RAIIO_D
 
 constexpr float RS = 0.05;
 
-#define LINEAR_STEP_TIME 200
-#define ROTATE_STEP_CW (MICROSTEP_FACTOR * 10)
+#define LINEAR_STEP_TIME 100
+#define ROTATE_STEP_CW (MICROSTEP_FACTOR)
 
 TMC5160Stepper stepperDriver(pin_chipSelA, RS);
 
@@ -142,6 +142,28 @@ char readChar() {
   return Serial.read();
 }
 
+String readLine() {
+  String result;
+  while (Serial.available() > 0) {
+    delay(3); // delay to allow buffer to fill
+
+    if (Serial.available() > 0) {
+      char c = Serial.read();
+      result += c;
+
+      if (c == '\n') {
+        break;
+      }
+    }
+  }
+
+  if (result.length() > 0) {
+    Serial.print("Received "); Serial.println(result);
+  }
+
+  return result;
+}
+
 void rotate(int steps) {
   stepperDriver.XTARGET(stepperDriver.XACTUAL() + steps); // This is in Microsteps
   Serial.print("Rotating ");
@@ -153,14 +175,22 @@ void rotate(int steps) {
 }
 
 void linearExtendStep() {
-  linearExtend();
-  delay(LINEAR_STEP_TIME);
-  linearStop();
+  linearExtendStep(LINEAR_STEP_TIME);
 }
 
 void linearRetractStep() {
+  linearRetractStep(LINEAR_STEP_TIME);
+}
+
+void linearExtendStep(int delayTime) {
+  linearExtend();
+  delay(delayTime);
+  linearStop();
+}
+
+void linearRetractStep(int delayTime) {
   linearRetract();
-  delay(LINEAR_STEP_TIME);
+  delay(delayTime);
   linearStop();
 }
 
@@ -174,7 +204,7 @@ void processCommand(char cmd) {
       rotate(ROTATE_STEP_CW);
       break;
     case 'R':
-      rotate(- ROATE_STEP_CW);
+      rotate(- ROTATE_STEP_CW);
       break;
     case 'l':
       linearExtendStep();
@@ -185,7 +215,37 @@ void processCommand(char cmd) {
   }
 }
 
+void processCommand(String cmd) {
+  if (cmd.length() <= 1) {
+    Serial.print(cmd);
+    Serial.println(" - Missing argument");
+    return;
+  }
+
+  char action = cmd.charAt(0);
+  int howMuch = cmd.substring(1, cmd.length()).toInt();
+
+  switch (action) {
+    case 'r':
+    case 'R':
+      rotate(howMuch * ROTATE_STEP_CW);
+      break;
+    case 'l':
+    case 'L':
+      if (howMuch >= 0) {
+        linearExtendStep(howMuch * LINEAR_STEP_TIME);
+      } else {
+        linearRetractStep(- howMuch * LINEAR_STEP_TIME);
+      }
+      break;
+  }
+}
+
 void loop() {
-  char cmd = readChar();
-  processCommand(cmd);
+  String cmd = readLine();
+  if (cmd.length() <= 1) {
+    delay(500);
+  } else {
+    processCommand(cmd);
+  }
 }
